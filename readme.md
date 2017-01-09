@@ -1,5 +1,7 @@
 ## Laravel 5 Translation Manager
 
+This is a versioned of [Barryvdh Package](https://github.com/barryvdh/laravel-translation-manager/) to add Google Translate
+
 ### For Laravel 4, please use the [0.1 branch](https://github.com/barryvdh/laravel-translation-manager/tree/0.1)!
 
 This is a package to manage Laravel translation files.
