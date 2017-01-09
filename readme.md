@@ -20,9 +20,9 @@ This way, translations can be saved in git history and no overhead is introduced
 
 ## Installation
 
-Require this package in your composer.json and run composer update (or run `composer require barryvdh/laravel-translation-manager` directly):
+Require this package in your composer.json and run composer update (or run `composer require ericlagarda/laravel-translation-manager-google-translate` directly):
 
-    "barryvdh/laravel-translation-manager": "0.2.x"
+    "ericlagarda/laravel-translation-manager-google-translate": "0.2.x"
 
 After updating composer, add the ServiceProvider to the providers array in config/app.php
 
