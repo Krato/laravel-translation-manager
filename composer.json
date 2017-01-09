@@ -11,7 +11,7 @@
         {
             "name": "Eric Lagarda",
             "email": "info@ericlagarda.com"
-        },
+        }
     ],
     "require": {
         "php": ">=5.4.0",
