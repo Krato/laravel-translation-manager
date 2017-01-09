@@ -22,10 +22,17 @@
 
             $.ajaxSetup({
                 beforeSend: function(xhr, settings) {
-                    console.log('beforesend');
                     settings.data += "&_token=<?= csrf_token() ?>";
                 }
             });
+
+            $.fn.editableform.buttons = '<div class="col-xs-12">' +
+                                            '<button type="submit" class="btn btn-primary editable-submit"><i class="glyphicon glyphicon-ok"></i></button>' +
+                                            '<button type="button" class="btn btn-default editable-cancel"><i class="glyphicon glyphicon-remove"></i></button>' +
+                                        '</div>' +
+                                        '<div class="col-xs-12" style="margin-top:10px">' +
+                                            '<button type="button" class="btn btn-info editable-translate" data-loading-text="Translating..."><i class="glyphicon glyphicon-transfer"></i> Translate</button>' +
+                                        '</div>';
 
             $('.editable').editable().on('hidden', function(e, reason){
                 var locale = $(this).data('locale');
@@ -38,6 +45,24 @@
                         $next.editable('show');
                     }, 300);
                 }
+            });
+
+            $(document).delegate(".editable-translate",'click',function(e){ 
+                var $btn = $(this),
+                    $current = $(this).parentsUntil('td').parent().find('a'),
+                    url = "<?=  action('\Barryvdh\TranslationManager\Controller@postGetTranslated') ?>",
+                    nameNow = $current.data("name"),
+                    nameEn = nameNow.replace(/.+?\|/, "en|"),
+                    enTxt = $("[data-name='"+nameEn+"']").text().replace(/(\:([^\s|\.]+))/g, "[asdfg$2asdfg]");
+
+                $btn.button('loading');
+                $.post(url, {
+                    name: nameNow,
+                    value: enTxt
+                }, "json").done(function(data){
+                    $btn.button('reset');
+                    $('.editable-input').find('textarea').val(JSON.parse(data));
+                });
             });
 
             $('.group-select').on('change', function(){
@@ -73,6 +98,39 @@
                 $('div.success-publish').slideDown();
             });
 
+            $("#auto-translate").click(function(){
+                var $btn = $(this),
+                    $empties = $(".editable-empty").not("[data-locale=en]"),
+                    done = 0;
+                if($empties.length !== 0) {
+                    $btn.button('loading');
+                    $empties.each(function(){
+                        var $this = $(this),
+                            nameNow = $this.data("name"),
+                            nameEn = nameNow.replace(/.+?\|/, "en|"),
+                            enTxt = $("[data-name='"+nameEn+"']").text().replace(/(\:([^\s|\.]+))/g, "[asdfg$2asdfg]");
+                        if($("[data-name='"+nameEn+"']").hasClass('editable-empty')) {
+                            $btn.button('reset');
+                            return false;
+                        }
+                        $.post($this.data("url"), {
+                            name: nameNow,
+                            value: enTxt,
+                            translate: "auto",
+                            pk: $this.data("pk")
+                        }, "json").done(function(data){
+                            $this.html(data.value);
+                            $this.editable('option', {value: data.value});
+                            $this.removeClass('status-0').addClass('status-1');
+                            done++;
+                            if(done == $empties.length) {
+                                $btn.button('reset');
+                            }
+                        });
+                    });
+                }
+            });
+
         })
     </script>
 </head>
@@ -89,13 +147,13 @@
     <div class="alert alert-success success-publish" style="display:none;">
         <p>Done publishing the translations for group '<?= $group ?>'!</p>
     </div>
-    <?php if(Session::has('successPublish')) : ?>
+    <?php if (Session::has('successPublish')) : ?>
         <div class="alert alert-info">
             <?php echo Session::get('successPublish'); ?>
         </div>
     <?php endif; ?>
     <p>
-        <?php if(!isset($group)) : ?>
+        <?php if (!isset($group)) : ?>
         <form class="form-inline form-import" method="POST" action="<?= action('\Barryvdh\TranslationManager\Controller@postImport') ?>" data-remote="true" role="form">
             <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
             <select name="replace" class="form-control">
@@ -110,7 +168,7 @@
             <button type="submit" class="btn btn-info" data-disable-with="Searching.." >Find translations in files</button>
         </form>
         <?php endif; ?>
-        <?php if(isset($group)) : ?>
+        <?php if (isset($group)) : ?>
             <form class="form-inline form-publish" method="POST" action="<?= action('\Barryvdh\TranslationManager\Controller@postPublish', $group) ?>" data-remote="true" role="form" data-confirm="Are you sure you want to publish the translations group '<?= $group ?>? This will overwrite existing language files.">
                 <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
                 <button type="submit" class="btn btn-info" data-disable-with="Publishing.." >Publish translations</button>
@@ -122,13 +180,13 @@
         <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
         <div class="form-group">
             <select name="group" id="group" class="form-control group-select">
-                <?php foreach($groups as $key => $value): ?>
-                    <option value="<?= $key ?>"<?= $key == $group ? ' selected':'' ?>><?= $value ?></option>
+                <?php foreach ($groups as $key => $value): ?>
+                    <option value="<?= $key ?>"<?= $key == $group ? ' selected' : '' ?>><?= $value ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
     </form>
-    <?php if($group): ?>
+    <?php if ($group): ?>
         <form action="<?= action('\Barryvdh\TranslationManager\Controller@postAdd', array($group)) ?>" method="POST"  role="form">
             <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
             <textarea class="form-control" rows="3" name="keys" placeholder="Add 1 key per line, without the group prefix"></textarea>
@@ -141,27 +199,26 @@
         <thead>
         <tr>
             <th width="15%">Key</th>
-            <?php foreach($locales as $locale): ?>
+            <?php foreach ($locales as $locale): ?>
                 <th><?= $locale ?></th>
             <?php endforeach; ?>
-            <?php if($deleteEnabled): ?>
+            <?php if ($deleteEnabled): ?>
                 <th>&nbsp;</th>
             <?php endif; ?>
         </tr>
         </thead>
         <tbody>
 
-        <?php foreach($translations as $key => $translation): ?>
+        <?php foreach ($translations as $key => $translation): ?>
             <tr id="<?= $key ?>">
                 <td><?= $key ?></td>
-                <?php foreach($locales as $locale): ?>
+                <?php foreach ($locales as $locale): ?>
                     <?php $t = isset($translation[$locale]) ? $translation[$locale] : null?>
-
                     <td>
-                        <a href="#edit" class="editable status-<?= $t ? $t->status : 0 ?> locale-<?= $locale ?>" data-locale="<?= $locale ?>" data-name="<?= $locale . "|" . $key ?>" id="username" data-type="textarea" data-pk="<?= $t ? $t->id : 0 ?>" data-url="<?= $editUrl ?>" data-title="Enter translation"><?= $t ? htmlentities($t->value, ENT_QUOTES, 'UTF-8', false) : '' ?></a>
+                        <a href="#edit" class="editable status-<?= $t ? $t->status : 0 ?> locale-<?= $locale ?>" data-locale="<?= $locale ?>" data-name="<?= $locale.'|'.$key ?>" id="username" data-type="textarea" data-pk="<?= $t ? $t->id : 0 ?>" data-url="<?= $editUrl ?>" data-title="Enter translation"><?= $t ? htmlentities($t->value, ENT_QUOTES, 'UTF-8', false) : '' ?></a>
                     </td>
                 <?php endforeach; ?>
-                <?php if($deleteEnabled): ?>
+                <?php if ($deleteEnabled): ?>
                     <td>
                         <a href="<?= action('\Barryvdh\TranslationManager\Controller@postDelete', [$group, $key]) ?>" class="delete-key" data-confirm="Are you sure you want to delete the translations for '<?= $key ?>?"><span class="glyphicon glyphicon-trash"></span></a>
                     </td>
@@ -170,6 +227,7 @@
         <?php endforeach; ?>
 
         </tbody>
+        <button type="button" id="auto-translate" class="btn btn-primary" data-loading-text="Translating...">Auto translate</button>
     </table>
     <?php else: ?>
         <p>Choose a group to display the group translations. If no groups are visible, make sure you have run the migrations and imported the translations.</p>

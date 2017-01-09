@@ -1,9 +1,12 @@
-<?php namespace Barryvdh\TranslationManager;
+<?php
+
+namespace Barryvdh\TranslationManager;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
 use Barryvdh\TranslationManager\Models\Translation;
 use Illuminate\Support\Collection;
+use Stichoza\GoogleTranslate\TranslateClient;
 
 class Controller extends BaseController
 {
@@ -20,26 +23,25 @@ class Controller extends BaseController
         $locales = $this->loadLocales();
         $groups = Translation::groupBy('group');
         $excludedGroups = $this->manager->getConfig('exclude_groups');
-        if($excludedGroups){
+        if ($excludedGroups) {
             $groups->whereNotIn('group', $excludedGroups);
         }
 
-        $groups = $groups->select('group')->get()->pluck('group', 'group');
+        $groups = $groups->pluck('group', 'group');
         if ($groups instanceof Collection) {
             $groups = $groups->all();
         }
-        $groups = [''=>'Choose a group'] + $groups;
+        $groups = ['' => 'Choose a group'] + $groups;
         $numChanged = Translation::where('group', $group)->where('status', Translation::STATUS_CHANGED)->count();
-
 
         $allTranslations = Translation::where('group', $group)->orderBy('key', 'asc')->get();
         $numTranslations = count($allTranslations);
         $translations = [];
-        foreach($allTranslations as $translation){
+        foreach ($allTranslations as $translation) {
             $translations[$translation->key][$translation->locale] = $translation;
         }
 
-         return view('translation-manager::index')
+        return view('translation-manager::index')
             ->with('translations', $translations)
             ->with('locales', $locales)
             ->with('groups', $groups)
@@ -54,21 +56,20 @@ class Controller extends BaseController
     {
         $groups = func_get_args();
         $group = implode('/', $groups);
+
         return $this->getIndex($group);
     }
 
     protected function loadLocales()
     {
         //Set the default locale as the first one. 
-        $locales = Translation::groupBy('locale')
-            ->select('locale')
-            ->get()
-            ->pluck('locale');
+        $locales = Translation::groupBy('locale')->get()->pluck('locale');
 
         if ($locales instanceof Collection) {
             $locales = $locales->all();
         }
         $locales = array_merge([config('app.locale')], $locales);
+
         return array_unique($locales);
     }
 
@@ -80,23 +81,25 @@ class Controller extends BaseController
         array_shift($groups); // remove the $request
         $group = implode('/', $groups);
 
-        foreach($keys as $key){
+        foreach ($keys as $key) {
             $key = trim($key);
-            if($group && $key){
+            if ($group && $key) {
                 $this->manager->missingKey('*', $group, $key);
             }
         }
+
         return redirect()->back();
     }
 
     public function postEdit(Request $request, $group)
     {
-        if(!in_array($group, $this->manager->getConfig('exclude_groups'))) {
+        if (!in_array($group, $this->manager->getConfig('exclude_groups'))) {
             $groups = func_get_args();
             array_shift($groups); // remove the $request
             $group = implode('/', $groups);
             $name = $request->get('name');
             $value = $request->get('value');
+            $translate = $request->get('translate');
 
             list($locale, $key) = explode('|', $name, 2);
             $translation = Translation::firstOrNew([
@@ -104,10 +107,18 @@ class Controller extends BaseController
                 'group' => $group,
                 'key' => $key,
             ]);
+
+            if ($translate == 'auto') {
+                $tr = new TranslateClient('en', $locale);
+                $value = $tr->translate($value);
+                $value = preg_replace('#\[asdfg(.+?)asdfg\]#i', ':$1', $value);
+            }
+
             $translation->value = (string) $value ?: null;
             $translation->status = Translation::STATUS_CHANGED;
             $translation->save();
-            return array('status' => 'ok');
+
+            return array('status' => 'ok', 'value' => $value);
         }
     }
 
@@ -116,8 +127,9 @@ class Controller extends BaseController
         $groups = func_get_args();
         $key = array_pop($groups); // the last arg is the key
         $group = implode('/', $groups);
-        if(!in_array($group, $this->manager->getConfig('exclude_groups')) && $this->manager->getConfig('delete_enabled')) {
+        if (!in_array($group, $this->manager->getConfig('exclude_groups')) && $this->manager->getConfig('delete_enabled')) {
             Translation::where('group', $group)->where('key', $key)->delete();
+
             return ['status' => 'ok'];
         }
     }
@@ -144,5 +156,18 @@ class Controller extends BaseController
         $this->manager->exportTranslations($group);
 
         return ['status' => 'ok'];
+    }
+
+    public function postGetTranslated(Request $request)
+    {
+        $name = $request->get('name');
+        $value = $request->get('value');
+
+        list($locale, $key) = explode('|', $name, 2);
+        $tr = new TranslateClient('en', $locale);
+        $value = $tr->translate($value);
+        $value = preg_replace('#\[asdfg(.+?)asdfg\]#i', ':$1', $value);
+
+        return json_encode($value);
     }
 }
