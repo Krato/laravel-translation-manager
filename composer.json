@@ -1,5 +1,5 @@
 {
-    "name": "ericlagarda/laravel-translation-manager",
+    "name": "ericlagarda/laravel-translation-manager-google-translate",
     "description": "Manage Laravel Translations with Google translate",
     "keywords": ["laravel", "translations", "translator"],
     "license": "MIT",
